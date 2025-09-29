@@ -1,28 +1,28 @@
 spring:
   application:
     name: poc-resilience4j
-  datasource:
-    url: jdbc:postgresql://localhost:5432/codetatva_poc
-    username: root
-    password: password123
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      minimum-idle: 5
-      maximum-pool-size: 20
-      idle-timeout: 30000
-      pool-name: HikariPool-1
-  jpa:
-    hibernate:
-      ddl-auto: create
-    show-sql: true
-    # Recommended: enable dialect explicitly if you're getting metadata issues
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
-        connection:
-          isolation: 2  # 2 = TRANSACTION_READ_COMMITTED
+#  datasource:
+#    url: jdbc:postgresql://localhost:5432/codetatva_poc
+#    username: root
+#    password: password123
+#    driver-class-name: org.postgresql.Driver
+#    hikari:
+#      minimum-idle: 5
+#      maximum-pool-size: 20
+#      idle-timeout: 30000
+#      pool-name: HikariPool-1
+#  jpa:
+#    hibernate:
+#      ddl-auto: create
+#    show-sql: true
+#    # Recommended: enable dialect explicitly if you're getting metadata issues
+#    database-platform: org.hibernate.dialect.PostgreSQLDialect
+#    properties:
+#      hibernate:
+#        jdbc:
+#          time_zone: UTC
+#        connection:
+#          isolation: 2  # 2 = TRANSACTION_READ_COMMITTED
 
 server:
   port: 8081
@@ -31,9 +31,68 @@ management:
   endpoints:
     web:
       exposure:
-        include:
-          - health
-          - info
+        include: health,metrics,circuitbreakers
   endpoint:
     health:
       show-details: always
+    metrics:
+      enabled: true
+
+# Resilience4j applies patterns in order: TimeLimiter, RateLimiter, Bulkhead, CircuitBreaker, Retry
+resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 4s
+        cancel-running-future: true
+    instances:
+      inventoryService:
+        base-config: default
+  ratelimiter:
+    configs:
+      default:
+        limit-for-period: 10
+        limit-refresh-period: 1s
+        timeout-duration: 0s
+    instances:
+      inventoryService:
+        base-config: default
+  bulkhead:
+    configs:
+      default:
+        max-concurrent-calls: 10
+        max-wait-duration: 0ms
+    instances:
+      inventoryService:
+        base-config: default
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 90
+        slow-call-rate-threshold: 90
+        slow-call-duration-threshold: 50ms
+        wait-duration-in-open-state: 1s
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+    instances:
+      inventoryService:
+        base-config: default
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 200ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+    instances:
+      inventoryService:
+        base-config: default
+
+logging:
+  level:
+    com.codetatva.poc_resilience4j: DEBUG
+    io.github.resilience4j: DEBUG
